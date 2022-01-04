@@ -22,6 +22,10 @@
 #include <stdint.h>
 #include <math.h>
 
+#include "io/gps.h"
+#include "flight/position.h"
+#include "sensors/barometer.h"
+
 #include "platform.h"
 
 #include "build/debug.h"
@@ -66,10 +70,14 @@
 #define DYN_LPF_THROTTLE_UPDATE_DELAY_US 5000 // minimum of 5ms between updates
 
 static FAST_DATA_ZERO_INIT float motorMixRange;
+PG_RESET_TEMPLATE(mixerConfig_t, mixerConfig,
+	.alti_cutoff = 50,
+    .alti_start_lim = 40,							   
 
 float FAST_DATA_ZERO_INIT motor[MAX_SUPPORTED_MOTORS];
 float motor_disarmed[MAX_SUPPORTED_MOTORS];
 
+static uint8_t altiLimStatus = 0;													   
 static FAST_DATA_ZERO_INIT int throttleAngleCorrection;
 
 float getMotorMixRange(void)
@@ -613,6 +621,23 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs)
         // Apply the mix to motor endpoints
         applyMixToMotors(motorMix, activeMixer);
     }
+	
+if ( (gpsIsHealthy() && gpsSol.numSat > 7) || isBaroReady() ) {
+        if (getEstimatedAltitudeCm() > (mixerConfig()->alti_cutoff*100)){
+            throttle = 0.0f;
+            altiLimStatus = 1;
+        } else if(getEstimatedAltitudeCm() > (mixerConfig()->alti_start_lim*100)){
+            float limitingRatio = 0.4f * ((mixerConfig()->alti_cutoff*100) - getEstimatedAltitudeCm()) / ((mixerConfig()->alti_cutoff*100) - (mixerConfig()->alti_start_lim*100));
+            limitingRatio = constrainf(limitingRatio, 0.0f, 1.0f);
+            throttle = constrainf(limitingRatio, 0.0f, throttle);
+            altiLimStatus = 1;
+        } else {
+            altiLimStatus = 0;
+        }
+    } else {
+        altiLimStatus = 2;
+    }
+
 }
 
 void mixerSetThrottleAngleCorrection(int correctionValue)
@@ -624,3 +649,7 @@ float mixerGetThrottle(void)
 {
     return mixerThrottle;
 }
+
+uint8_t getThrottleLimitationStatus(void)
+{
+    return altiLimStatus;
