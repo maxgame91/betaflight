@@ -544,6 +544,22 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs)
     // send throttle value to blackbox, including scaling and throttle boost, but not TL compensation, dyn idle or airmode 
     mixerThrottle = throttle;
 
+if ( (gpsIsHealthy() && gpsSol.numSat > 7) || isBaroReady() ) {
+        if (getEstimatedAltitudeCm() > (mixerConfig()->alti_cutoff*100)){
+            throttle = 0.0f;
+            altiLimStatus = 3;
+        } else if(getEstimatedAltitudeCm() > (mixerConfig()->alti_start_lim*100)){
+            float limitingRatio = 0.4f * ((mixerConfig()->alti_cutoff*100) - getEstimatedAltitudeCm()) / ((mixerConfig()->alti_cutoff*100) - (mixerConfig()->alti_start_lim*100));
+            limitingRatio = constrainf(limitingRatio, 0.0f, 1.0f);
+            throttle = constrainf(limitingRatio, 0.0f, throttle);
+            altiLimStatus = 1;
+        } else {
+            altiLimStatus = 0;
+        }
+    } else {
+        altiLimStatus = 2;
+    }
+
 #ifdef USE_DYN_IDLE
     // Apply digital idle throttle offset when stick is at zero after all other adjustments are complete
     if (mixerRuntime.dynIdleMinRps > 0.0f) {
@@ -622,22 +638,6 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs)
         applyMixToMotors(motorMix, activeMixer);
     }
 	
-if ( (gpsIsHealthy() && gpsSol.numSat > 7) || isBaroReady() ) {
-        if (getEstimatedAltitudeCm() > (mixerConfig()->alti_cutoff*100)){
-            throttle = 0.0f;
-            altiLimStatus = 1;
-        } else if(getEstimatedAltitudeCm() > (mixerConfig()->alti_start_lim*100)){
-            float limitingRatio = 0.4f * ((mixerConfig()->alti_cutoff*100) - getEstimatedAltitudeCm()) / ((mixerConfig()->alti_cutoff*100) - (mixerConfig()->alti_start_lim*100));
-            limitingRatio = constrainf(limitingRatio, 0.0f, 1.0f);
-            throttle = constrainf(limitingRatio, 0.0f, throttle);
-            altiLimStatus = 1;
-        } else {
-            altiLimStatus = 0;
-        }
-    } else {
-        altiLimStatus = 2;
-    }
-
 }
 
 void mixerSetThrottleAngleCorrection(int correctionValue)

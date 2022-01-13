@@ -1472,6 +1472,21 @@ static void osdElementWarnings(osdElementParms_t *element)
     } else {
         CLR_BLINK(OSD_WARNINGS);
     }
+	
+	    // Show warning if no altitude limitation applicable
+    if (getThrottleLimitationStatus() == 2) {
+        tfp_sprintf(element->buff, "NO ALTI LIM");
+        SET_BLINK(OSD_WARNINGS);
+        return;
+    } else if(getThrottleLimitationStatus() == 1) {
+        tfp_sprintf(element->buff, "ALTI LIM");
+        SET_BLINK(OSD_WARNINGS);
+        return;
+    }  else if(getThrottleLimitationStatus() == 3) {
+        tfp_sprintf(element->buff, "ALTI MAX");
+        SET_BLINK(OSD_WARNINGS);
+        return;
+	}
 }
 
 // Define the order in which the elements are drawn.
